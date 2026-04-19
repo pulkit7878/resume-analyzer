@@ -38,6 +38,29 @@ const ACTION_VERBS = [
   'collaborated',
 ];
 
+const PROGRAMMING_LANGUAGE_POOL = [
+  'javascript',
+  'js',
+  'typescript',
+  'ts',
+  'python',
+  'py',
+  'java',
+  'c',
+  'c++',
+  'cpp',
+  'c#',
+  'csharp',
+  'rust',
+  'go',
+  'golang',
+  'ruby',
+  'php',
+  'swift',
+  'kotlin',
+  'scala',
+];
+
 const WEAK_BULLET_PATTERNS = [
   /^responsible for\b/,
   /^worked on\b/,
@@ -224,6 +247,26 @@ function countKeywordMentions(text, synonyms) {
 
 function findEvidenceSection(sectionMap, synonyms) {
   return Object.entries(sectionMap).find(([, sectionText]) => findBestSynonym(sectionText, synonyms))?.[0] ?? null;
+}
+
+function hasAnyProgrammingLanguage(normalizedText) {
+  return PROGRAMMING_LANGUAGE_POOL.some((language) => synonymMatched(normalizedText, language));
+}
+
+function isGenericLanguageRequirement(roleId, keywordName) {
+  return roleId === 'software-developer' && ['JavaScript', 'Python'].includes(keywordName);
+}
+
+function getMissingSkillPriority({ roleId, keyword, demandedByJobDescription, hasLanguageSignal }) {
+  if (demandedByJobDescription) {
+    return 'Critical';
+  }
+
+  if (isGenericLanguageRequirement(roleId, keyword.name) && hasLanguageSignal) {
+    return 'Covered by alternate language';
+  }
+
+  return 'Recommended';
 }
 
 function getRoleById(roleId) {
@@ -548,7 +591,10 @@ function buildRiskList({ sections, diagnostics, impact, skillsScore, jobDescript
 
 function buildRecommendations({ missingSkills, sectionDetails, impact, jobDescriptionInsights, diagnostics, role }) {
   const recommendations = [];
-  const topSkills = missingSkills.slice(0, 3).map((skill) => skill.name);
+  const topSkills = missingSkills
+    .filter((skill) => skill.priority !== 'Covered by alternate language')
+    .slice(0, 3)
+    .map((skill) => skill.name);
 
   if (topSkills.length) {
     recommendations.push({
@@ -614,9 +660,12 @@ function buildRecommendations({ missingSkills, sectionDetails, impact, jobDescri
 
 function buildRoadmap({ matchedSkills, missingSkills, impact, sections }) {
   const roadmap = [];
+  const priorityMissingSkills = missingSkills.filter(
+    (skill) => skill.priority !== 'Covered by alternate language',
+  );
 
-  if (missingSkills.length) {
-    roadmap.push(`Prioritize ${missingSkills[0].name} and ${missingSkills[1]?.name ?? 'another missing core skill'} in your next resume revision.`);
+  if (priorityMissingSkills.length) {
+    roadmap.push(`Prioritize ${priorityMissingSkills[0].name} and ${priorityMissingSkills[1]?.name ?? 'another missing core skill'} in your next resume revision.`);
   }
 
   if (!sections.projects) {
@@ -647,10 +696,13 @@ function buildCriticalIssues({
   atsPassProbability,
 }) {
   const issues = [];
+  const priorityMissingSkills = missingSkills.filter(
+    (skill) => skill.priority !== 'Covered by alternate language',
+  );
 
-  if (missingSkills.length) {
+  if (priorityMissingSkills.length) {
     issues.push({
-      title: `Missing core skills: ${missingSkills.slice(0, 2).map((skill) => skill.name).join(', ')}`,
+      title: `Missing core skills: ${priorityMissingSkills.slice(0, 2).map((skill) => skill.name).join(', ')}`,
       severity: 'High',
       impact: 98,
       detail: 'The resume is not surfacing some of the most important role-specific skills recruiters expect.',
@@ -800,9 +852,12 @@ function buildAtsRiskAnalysis({ atsPassProbability, sections, diagnostics, missi
     formattingIssues.push('Several bullets are too generic or task-based');
   }
 
-  missingSkills.slice(0, 4).forEach((skill) => {
-    keywordIssues.push(`${skill.name} is not clearly reflected`);
-  });
+  missingSkills
+    .filter((skill) => skill.priority !== 'Covered by alternate language')
+    .slice(0, 4)
+    .forEach((skill) => {
+      keywordIssues.push(`${skill.name} is not clearly reflected`);
+    });
 
   if (jobDescriptionInsights.enabled) {
     jobDescriptionInsights.missingKeywords.slice(0, 3).forEach((skill) => {
@@ -825,6 +880,7 @@ function buildJobMatchIntelligence({ jobDescriptionInsights, missingSkills }) {
     ? jobDescriptionInsights.missingKeywords
     : missingSkills
   )
+    .filter((skill) => skill.priority !== 'Covered by alternate language')
     .slice(0, 5)
     .map((skill, index) => ({
       id: `job-match-${index}`,
@@ -944,9 +1000,12 @@ function buildStrengths({ matchedSkills, sections, impact, experience, role }) {
 
 function buildWeaknesses({ missingSkills, sections, impact, jobDescriptionInsights }) {
   const weaknesses = [];
+  const priorityMissingSkills = missingSkills.filter(
+    (skill) => skill.priority !== 'Covered by alternate language',
+  );
 
-  if (missingSkills.length) {
-    weaknesses.push(`Missing or under-emphasizing key skills such as ${missingSkills.slice(0, 2).map((skill) => skill.name).join(' and ')}.`);
+  if (priorityMissingSkills.length) {
+    weaknesses.push(`Missing or under-emphasizing key skills such as ${priorityMissingSkills.slice(0, 2).map((skill) => skill.name).join(' and ')}.`);
   }
 
   if (!sections.projects) {
@@ -988,6 +1047,7 @@ function scoreRole({
   };
   const normalizedJobDescription = normalizeResumeText(jobDescription || '');
   const jobDescriptionUsed = Boolean(normalizedJobDescription.trim());
+  const hasLanguageSignal = hasAnyProgrammingLanguage(normalizedText);
 
   let matchedWeight = 0;
   let totalWeightedDemand = 0;
@@ -1035,7 +1095,12 @@ function scoreRole({
       name: keyword.name,
       weight: Math.round(weightedDemand * 10) / 10,
       suggestion: keyword.suggestion,
-      priority: demandedByJobDescription ? 'Critical' : 'Recommended',
+      priority: getMissingSkillPriority({
+        roleId: role.id,
+        keyword,
+        demandedByJobDescription,
+        hasLanguageSignal,
+      }),
     });
   });
 
@@ -1165,7 +1230,12 @@ function scoreRole({
     role,
     score,
     fitLabel,
-    summary: buildSummary(role, score, missingSkills[0]?.name, experience),
+    summary: buildSummary(
+      role,
+      score,
+      missingSkills.find((skill) => skill.priority !== 'Covered by alternate language')?.name,
+      experience,
+    ),
     overallScore: score,
     hiringReadiness,
     atsPassProbability,
@@ -1176,7 +1246,9 @@ function scoreRole({
       jobRelevance: jobRelevanceScore,
     },
     matchedSkills: matchedSkills.sort((first, second) => second.weight - first.weight),
-    missingSkills: missingSkills.sort((first, second) => second.weight - first.weight),
+    missingSkills: missingSkills
+      .filter((skill) => skill.priority !== 'Covered by alternate language')
+      .sort((first, second) => second.weight - first.weight),
     suggestions: recommendations,
     strengths,
     weaknesses,
