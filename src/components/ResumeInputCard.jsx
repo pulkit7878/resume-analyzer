@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, FileText, RotateCcw, Sparkles, UploadCloud } from 'lucide-react';
+import { BriefcaseBusiness, FileText, RotateCcw, UploadCloud } from 'lucide-react';
 
 export function ResumeInputCard({
   isDragging,
@@ -12,7 +12,6 @@ export function ResumeInputCard({
   onTextChange,
   jobDescription,
   onJobDescriptionChange,
-  onLoadDemo,
   onClear,
   uploadStatus,
 }) {
@@ -72,14 +71,6 @@ export function ResumeInputCard({
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={onLoadDemo}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-slate-100 transition duration-200 hover:bg-white/15"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            Load Demo Data
-          </button>
           <button
             type="button"
             onClick={onClear}

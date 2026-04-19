@@ -19,34 +19,12 @@ function wait(duration) {
   return new Promise((resolve) => window.setTimeout(resolve, duration));
 }
 
-const defaultResume = `Alex Morgan
-Frontend Developer
-
-Skills
-React, JavaScript, TypeScript, Tailwind CSS, HTML, CSS, Git, REST APIs
-
-Projects
-Built a responsive e-commerce web app with React and Tailwind CSS. Integrated REST APIs,
-improved Lighthouse performance, and collaborated through GitHub pull requests.
-
-Experience
-1 year internship building reusable UI components and dashboard features.
-
-Education
-B.Tech in Computer Science`;
-
-const defaultJobDescription = `We are looking for a Frontend Developer with strong React, TypeScript, Tailwind CSS, accessibility,
-state management, and performance optimization experience. The ideal candidate has worked on responsive
-web applications, API integration, reusable component systems, and polished product UI.`;
-
 export default function App() {
   const [selectedRole, setSelectedRole] = useState('frontend');
-  const [resumeText, setResumeText] = useState(defaultResume);
-  const [jobDescription, setJobDescription] = useState(defaultJobDescription);
+  const [resumeText, setResumeText] = useState('');
+  const [jobDescription, setJobDescription] = useState('');
   const [uploadedFileName, setUploadedFileName] = useState('');
-  const [analysisResult, setAnalysisResult] = useState(() =>
-    analyzeResumeForRole(defaultResume, 'frontend', defaultJobDescription),
-  );
+  const [analysisResult, setAnalysisResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState(ANALYSIS_STEPS[0]);
   const [loadingStepIndex, setLoadingStepIndex] = useState(0);
@@ -132,15 +110,6 @@ export default function App() {
     if (resumeText.trim()) {
       setAnalysisResult(analyzeResumeForRole(resumeText, roleId, jobDescription));
     }
-  };
-
-  const handleLoadDemo = () => {
-    setUploadedFileName('demo-resume.pdf');
-    setResumeText(defaultResume);
-    setJobDescription(defaultJobDescription);
-    setUploadStatus(true);
-    setError('');
-    setAnalysisResult(analyzeResumeForRole(defaultResume, selectedRole, defaultJobDescription));
   };
 
   const handleClear = () => {
@@ -253,7 +222,6 @@ export default function App() {
               onTextChange={setResumeText}
               jobDescription={jobDescription}
               onJobDescriptionChange={setJobDescription}
-              onLoadDemo={handleLoadDemo}
               onClear={handleClear}
               uploadStatus={uploadStatus}
             />

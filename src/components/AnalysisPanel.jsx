@@ -203,41 +203,21 @@ function AtsRiskPanel({ analysis }) {
 
       <p className="mt-3 text-sm leading-6 text-slate-400">{analysis.level}</p>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <div>
-          <p className="mb-2 text-xs uppercase tracking-[0.2em] text-slate-500">Formatting Issues</p>
-          <div className="space-y-2">
-            {analysis.formattingIssues.length ? (
-              analysis.formattingIssues.map((issue) => (
-                <div
-                  key={issue}
-                  className="rounded-2xl border border-white/10 bg-slate-950/35 px-3 py-2 text-sm text-slate-300"
-                >
-                  {issue}
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-slate-400">No major formatting issues detected.</p>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <p className="mb-2 text-xs uppercase tracking-[0.2em] text-slate-500">Keyword Issues</p>
-          <div className="space-y-2">
-            {analysis.keywordIssues.length ? (
-              analysis.keywordIssues.map((issue) => (
-                <div
-                  key={issue}
-                  className="rounded-2xl border border-white/10 bg-slate-950/35 px-3 py-2 text-sm text-slate-300"
-                >
-                  {issue}
-                </div>
-              ))
-            ) : (
-              <p className="text-sm text-slate-400">No major keyword issues detected.</p>
-            )}
-          </div>
+      <div className="mt-5">
+        <p className="mb-2 text-xs uppercase tracking-[0.2em] text-slate-500">Formatting Issues</p>
+        <div className="space-y-2">
+          {analysis.formattingIssues.length ? (
+            analysis.formattingIssues.map((issue) => (
+              <div
+                key={issue}
+                className="rounded-2xl border border-white/10 bg-slate-950/35 px-3 py-2 text-sm text-slate-300"
+              >
+                {issue}
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-slate-400">No major formatting issues detected.</p>
+          )}
         </div>
       </div>
     </div>
@@ -349,25 +329,6 @@ function DeepAnalysisPanel({ result }) {
         <ScoreBar label="Action Verb Quality" value={result.actionVerbSummary.score} tone="from-violet-400 to-fuchsia-500" />
         <ScoreBar label="Measurable Impact" value={result.impactSummary.score} tone="from-emerald-400 to-cyan-500" />
       </div>
-
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Strong Verbs</p>
-          <p className="mt-2 text-2xl font-semibold text-white">{result.actionVerbSummary.strong}</p>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Weak Bullets</p>
-          <p className="mt-2 text-2xl font-semibold text-white">{result.impactSummary.weakBulletCount}</p>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Bullets With Metrics</p>
-          <p className="mt-2 text-2xl font-semibold text-white">{result.impactSummary.bulletsWithMetrics}</p>
-        </div>
-      </div>
-
-      <p className="mt-4 text-sm leading-6 text-slate-400">
-        {result.actionVerbSummary.label}. {result.impactSummary.label}.
-      </p>
     </div>
   );
 }
