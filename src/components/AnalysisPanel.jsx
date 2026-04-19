@@ -27,6 +27,28 @@ function SkillTag({ label, variant = 'success' }) {
   );
 }
 
+function PriorityBadge({ level }) {
+  const styles =
+    level === 'High'
+      ? 'border-red-400/20 bg-red-500/10 text-red-100'
+      : level === 'Medium'
+        ? 'border-amber-400/20 bg-amber-500/10 text-amber-100'
+        : 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100';
+
+  return <span className={`rounded-full border px-2.5 py-1 text-xs ${styles}`}>{level} Priority</span>;
+}
+
+function SeverityBadge({ severity }) {
+  const styles =
+    severity === 'High'
+      ? 'border-red-400/20 bg-red-500/10 text-red-100'
+      : severity === 'Medium'
+        ? 'border-amber-400/20 bg-amber-500/10 text-amber-100'
+        : 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100';
+
+  return <span className={`rounded-full border px-2.5 py-1 text-xs ${styles}`}>{severity}</span>;
+}
+
 function SectionBadge({ label, active, icon, score }) {
   return (
     <div
@@ -48,7 +70,9 @@ function SectionBadge({ label, active, icon, score }) {
 function MetricCard({ label, value, helper, icon, tone = 'from-blue-500/20 to-violet-500/20' }) {
   return (
     <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.05] p-4 transition duration-300 hover:-translate-y-1 hover:bg-white/[0.07]">
-      <div className={`mb-4 inline-flex rounded-2xl border border-white/10 bg-gradient-to-br ${tone} p-2 text-slate-100`}>
+      <div
+        className={`mb-4 inline-flex rounded-2xl border border-white/10 bg-gradient-to-br ${tone} p-2 text-slate-100`}
+      >
         {icon}
       </div>
       <p className="text-2xl font-semibold text-white">{value}%</p>
@@ -118,7 +142,7 @@ function VerdictCard({ result }) {
         <div className="space-y-4">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs uppercase tracking-[0.26em] text-violet-100">
             <Trophy className="h-4 w-4" />
-            Final Verdict
+            Recruiter Verdict
           </div>
           <div>
             <p className="text-sm uppercase tracking-[0.22em] text-slate-400">Overall Score</p>
@@ -129,11 +153,11 @@ function VerdictCard({ result }) {
             <span className={`rounded-full border px-4 py-2 text-sm ${readinessTone}`}>
               Hiring Readiness: {result.hiringReadiness}
             </span>
-            <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-slate-200">
-              {result.role.label}
+            <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-100">
+              Chance of getting shortlisted: {result.shortlistChance}%
             </span>
             <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm text-slate-200">
-              {result.experience.label}
+              {result.role.label}
             </span>
           </div>
         </div>
@@ -144,37 +168,205 @@ function VerdictCard({ result }) {
   );
 }
 
-function AtsProbabilityBar({ value }) {
-  const tone =
-    value < 40
-      ? 'from-red-500 to-rose-400'
-      : value < 70
-        ? 'from-amber-400 to-yellow-300'
-        : 'from-emerald-400 to-cyan-400';
+function AtsRiskPanel({ analysis }) {
   const badgeTone =
-    value < 40
+    analysis.rejectionProbability >= 60
       ? 'border-red-400/20 bg-red-500/10 text-red-100'
-      : value < 70
+      : analysis.rejectionProbability >= 35
         ? 'border-amber-400/20 bg-amber-500/10 text-amber-100'
         : 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100';
+  const barTone =
+    analysis.rejectionProbability >= 60
+      ? 'from-red-500 to-rose-400'
+      : analysis.rejectionProbability >= 35
+        ? 'from-amber-400 to-yellow-300'
+        : 'from-emerald-400 to-cyan-400';
 
   return (
     <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-5">
       <div className="mb-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <ShieldCheck className="h-5 w-5 text-cyan-300" />
-          <h3 className="text-base font-semibold text-white">ATS Pass Probability</h3>
+          <h3 className="text-base font-semibold text-white">ATS Risk Analysis</h3>
         </div>
-        <span className={`rounded-full border px-3 py-1.5 text-sm ${badgeTone}`}>{value}%</span>
+        <span className={`rounded-full border px-3 py-1.5 text-sm ${badgeTone}`}>
+          Rejection Risk: {analysis.rejectionProbability}%
+        </span>
       </div>
+
       <div className="h-3 rounded-full bg-white/10">
         <div
-          className={`h-full rounded-full bg-gradient-to-r ${tone} transition-all duration-700`}
-          style={{ width: `${value}%` }}
+          className={`h-full rounded-full bg-gradient-to-r ${barTone} transition-all duration-700`}
+          style={{ width: `${analysis.rejectionProbability}%` }}
         />
       </div>
-      <p className="mt-3 text-sm leading-6 text-slate-400">
-        This combines resume structure, section clarity, keyword coverage, and role alignment to estimate ATS friendliness.
+
+      <p className="mt-3 text-sm leading-6 text-slate-400">{analysis.level}</p>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <div>
+          <p className="mb-2 text-xs uppercase tracking-[0.2em] text-slate-500">Formatting Issues</p>
+          <div className="space-y-2">
+            {analysis.formattingIssues.length ? (
+              analysis.formattingIssues.map((issue) => (
+                <div
+                  key={issue}
+                  className="rounded-2xl border border-white/10 bg-slate-950/35 px-3 py-2 text-sm text-slate-300"
+                >
+                  {issue}
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-slate-400">No major formatting issues detected.</p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-xs uppercase tracking-[0.2em] text-slate-500">Keyword Issues</p>
+          <div className="space-y-2">
+            {analysis.keywordIssues.length ? (
+              analysis.keywordIssues.map((issue) => (
+                <div
+                  key={issue}
+                  className="rounded-2xl border border-white/10 bg-slate-950/35 px-3 py-2 text-sm text-slate-300"
+                >
+                  {issue}
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-slate-400">No major keyword issues detected.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CriticalIssuesPanel({ issues }) {
+  return (
+    <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <CircleAlert className="h-5 w-5 text-red-300" />
+        <h3 className="text-base font-semibold text-white">Critical Issues</h3>
+      </div>
+      <div className="space-y-3">
+        {issues.length ? (
+          issues.map((issue, index) => (
+            <div key={`${issue.title}-${index}`} className="rounded-2xl border border-red-400/15 bg-red-500/8 p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-medium text-white">{issue.title}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-300">{issue.detail}</p>
+                </div>
+                <SeverityBadge severity={issue.severity} />
+              </div>
+            </div>
+          ))
+        ) : (
+          <p className="text-sm text-slate-400">No critical issues detected.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RewriteSuggestionsPanel({ suggestions }) {
+  return (
+    <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <Sparkles className="h-5 w-5 text-violet-300" />
+        <h3 className="text-base font-semibold text-white">AI Rewrite Suggestions</h3>
+      </div>
+      <div className="space-y-4">
+        {suggestions.length ? (
+          suggestions.map((suggestion) => (
+            <div key={suggestion.id} className="rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{suggestion.section}</p>
+                <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-xs text-slate-300">
+                  Before vs After
+                </span>
+              </div>
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                <div className="rounded-2xl border border-red-400/15 bg-red-500/8 p-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-red-200">Before</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-200">{suggestion.before}</p>
+                </div>
+                <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/8 p-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-emerald-200">After</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-200">{suggestion.after}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-sm text-slate-400">{suggestion.reason}</p>
+            </div>
+          ))
+        ) : (
+          <p className="text-sm text-slate-400">No weak bullets were found that need rewriting.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function JobMatchPanel({ result }) {
+  return (
+    <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <Target className="h-5 w-5 text-cyan-300" />
+        <h3 className="text-base font-semibold text-white">Job Match Intelligence</h3>
+      </div>
+      <p className="text-sm leading-6 text-slate-400">{result.jobMatchIntelligence.summary}</p>
+
+      <div className="mt-5 space-y-3">
+        {result.jobMatchIntelligence.prioritizedMissing.length ? (
+          result.jobMatchIntelligence.prioritizedMissing.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3"
+            >
+              <span className="font-medium text-white">{item.name}</span>
+              <PriorityBadge level={item.priority} />
+            </div>
+          ))
+        ) : (
+          <p className="text-sm text-slate-400">No missing job-match keywords were detected.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DeepAnalysisPanel({ result }) {
+  return (
+    <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-5">
+      <div className="mb-4 flex items-center gap-3">
+        <BarChart3 className="h-5 w-5 text-violet-300" />
+        <h3 className="text-base font-semibold text-white">Deep Analysis</h3>
+      </div>
+      <div className="space-y-4">
+        <ScoreBar label="Action Verb Quality" value={result.actionVerbSummary.score} tone="from-violet-400 to-fuchsia-500" />
+        <ScoreBar label="Measurable Impact" value={result.impactSummary.score} tone="from-emerald-400 to-cyan-500" />
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Strong Verbs</p>
+          <p className="mt-2 text-2xl font-semibold text-white">{result.actionVerbSummary.strong}</p>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Weak Bullets</p>
+          <p className="mt-2 text-2xl font-semibold text-white">{result.impactSummary.weakBulletCount}</p>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-slate-950/35 px-4 py-3">
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Bullets With Metrics</p>
+          <p className="mt-2 text-2xl font-semibold text-white">{result.impactSummary.bulletsWithMetrics}</p>
+        </div>
+      </div>
+
+      <p className="mt-4 text-sm leading-6 text-slate-400">
+        {result.actionVerbSummary.label}. {result.impactSummary.label}.
       </p>
     </div>
   );
@@ -186,26 +378,25 @@ export function AnalysisPanel({ result }) {
       <div className="glass-card-strong flex min-h-[42rem] flex-col justify-between rounded-[2rem] p-6 shadow-soft">
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-violet-200/80">Analysis Output</p>
-          <h2 className="mt-2 text-2xl font-semibold text-white">Your fit report appears here</h2>
+          <h2 className="mt-2 text-2xl font-semibold text-white">Your expert review appears here</h2>
           <p className="mt-4 max-w-xl text-sm leading-7 text-slate-400">
-            Choose a role, upload or paste a resume, and run the analyzer to see weighted matches, section signals, experience level, and smart improvement suggestions.
+            Upload a resume and optionally paste a job description to generate a recruiter-style report with critical issues, ATS risk, rewrite suggestions, and shortlist potential.
           </p>
         </div>
 
         <div className="mt-10 grid gap-4 md:grid-cols-2">
-          {['Weighted skill matching', 'Synonym detection', 'Section-aware scoring', 'Experience signals'].map(
-            (item, index) => (
+          {['Critical resume issues', 'ATS rejection risk', 'AI rewrite suggestions', 'Job match intelligence'].map(
+            (item) => (
               <div
                 key={item}
                 className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-5 text-slate-300 transition duration-300 hover:-translate-y-1 hover:bg-white/[0.06]"
-                style={{ animationDelay: `${index * 80}ms` }}
               >
                 <div className="mb-4 inline-flex rounded-2xl border border-white/10 bg-gradient-to-br from-blue-500/20 to-violet-500/20 p-2">
                   <Sparkles className="h-4 w-4 text-white" />
                 </div>
                 <p className="font-medium text-white">{item}</p>
                 <p className="mt-2 text-sm leading-6 text-slate-400">
-                  Designed to feel like a polished startup product, not a plain demo screen.
+                  Structured to feel like a real recruiter personally reviewed the resume.
                 </p>
               </div>
             ),
@@ -230,53 +421,32 @@ export function AnalysisPanel({ result }) {
           <MetricCard
             label="Skill Match Score"
             value={result.visibleScores.skillMatch}
-            helper="How well your visible skills match the selected role."
+            helper="How strongly the resume surfaces the skills expected for the role."
             icon={<Target className="h-5 w-5" />}
             tone="from-blue-500/20 to-cyan-500/20"
           />
           <MetricCard
             label="ATS Compatibility Score"
             value={result.visibleScores.atsCompatibility}
-            helper="How readable and complete the resume looks for applicant tracking systems."
+            helper="How readable, structured, and keyword-complete the resume looks to ATS systems."
             icon={<ShieldCheck className="h-5 w-5" />}
             tone="from-emerald-500/20 to-cyan-500/20"
           />
           <MetricCard
             label="Job Relevance Score"
             value={result.visibleScores.jobRelevance}
-            helper="How well the resume aligns with the target job role and job description."
+            helper="How well the resume aligns with the selected role and target job description."
             icon={<Trophy className="h-5 w-5" />}
             tone="from-violet-500/20 to-fuchsia-500/20"
           />
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
-          <AtsProbabilityBar value={result.atsPassProbability} />
-
-          <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-5">
-            <div className="mb-4 flex items-center gap-3">
-              <LayoutPanelTop className="h-5 w-5 text-cyan-300" />
-              <h3 className="text-base font-semibold text-white">Section Quality</h3>
-            </div>
-            <div className="space-y-3">
-              {sectionItems.map((section) => {
-                const detail = result.sectionDetails.find((item) => item.key === section.key);
-
-                return (
-                  <SectionBadge
-                    key={section.key}
-                    label={section.label}
-                    icon={section.icon}
-                    active={result.sections[section.key]}
-                    score={detail?.score ?? 0}
-                  />
-                );
-              })}
-            </div>
-          </div>
+        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+          <CriticalIssuesPanel issues={result.criticalIssues} />
+          <AtsRiskPanel analysis={result.atsRiskAnalysis} />
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div className="grid gap-6 xl:grid-cols-[1fr_1fr_0.95fr]">
           <InsightList
             title="Strengths"
             icon={<CheckCircle2 className="h-5 w-5 text-emerald-300" />}
@@ -291,6 +461,7 @@ export function AnalysisPanel({ result }) {
             emptyMessage="No major weaknesses were detected."
             tone="danger"
           />
+          <DeepAnalysisPanel result={result} />
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[1fr_1fr_0.95fr]">
@@ -326,15 +497,30 @@ export function AnalysisPanel({ result }) {
 
           <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-5">
             <div className="mb-4 flex items-center gap-3">
-              <BarChart3 className="h-5 w-5 text-violet-300" />
-              <h3 className="text-base font-semibold text-white">Quick Score View</h3>
+              <LayoutPanelTop className="h-5 w-5 text-cyan-300" />
+              <h3 className="text-base font-semibold text-white">Section Quality</h3>
             </div>
-            <div className="space-y-4">
-              <ScoreBar label="Skill Match" value={result.visibleScores.skillMatch} />
-              <ScoreBar label="ATS Compatibility" value={result.visibleScores.atsCompatibility} tone="from-emerald-400 to-cyan-500" />
-              <ScoreBar label="Job Relevance" value={result.visibleScores.jobRelevance} tone="from-violet-400 to-fuchsia-500" />
+            <div className="space-y-3">
+              {sectionItems.map((section) => {
+                const detail = result.sectionDetails.find((item) => item.key === section.key);
+
+                return (
+                  <SectionBadge
+                    key={section.key}
+                    label={section.label}
+                    icon={section.icon}
+                    active={result.sections[section.key]}
+                    score={detail?.score ?? 0}
+                  />
+                );
+              })}
             </div>
           </div>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+          <RewriteSuggestionsPanel suggestions={result.rewriteSuggestions} />
+          <JobMatchPanel result={result} />
         </div>
 
         <InsightList

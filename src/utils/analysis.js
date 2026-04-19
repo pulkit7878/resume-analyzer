@@ -38,6 +38,17 @@ const ACTION_VERBS = [
   'collaborated',
 ];
 
+const WEAK_BULLET_PATTERNS = [
+  /^responsible for\b/,
+  /^worked on\b/,
+  /^helped\b/,
+  /^involved in\b/,
+  /^participated in\b/,
+  /^assisted with\b/,
+  /^used\b/,
+  /^familiar with\b/,
+];
+
 const ROLE_TUNING = {
   'software-developer': {
     minYears: 1,
@@ -246,6 +257,120 @@ function analyzeImpactSignals(rawText, normalizedText, sections) {
     actionVerbCount,
     score: impactScore,
   };
+}
+
+function extractResumeBullets(rawText) {
+  const lines = getCleanLines(rawText);
+  const bullets = [];
+  let currentSection = 'summary';
+
+  lines.forEach((line) => {
+    const detectedSection = getSectionHeading(line);
+
+    if (detectedSection) {
+      currentSection = detectedSection;
+      return;
+    }
+
+    if (!['summary', 'projects', 'experience'].includes(currentSection)) {
+      return;
+    }
+
+    const normalizedLine = normalizeResumeText(line);
+    if (normalizedLine.length < 18) {
+      return;
+    }
+
+    bullets.push({
+      text: line,
+      normalized: normalizedLine,
+      section: currentSection,
+    });
+  });
+
+  return bullets;
+}
+
+function detectMetricMentions(text) {
+  return [
+    ...(text.match(/\b\d+%/g) || []),
+    ...(text.match(/\b\d+(?:\.\d+)?\+?\s*(?:users|clients|customers|projects|teams|features|months|weeks|days|hours|minutes)\b/gi) || []),
+    ...(text.match(/\$[\d,.]+/g) || []),
+    ...(text.match(/\b\d+x\b/gi) || []),
+  ];
+}
+
+function chooseRewriteVerb(bullet) {
+  const text = bullet.normalized;
+
+  if (/\b(optimi|performance|speed|latency|load|lighthouse)\b/.test(text)) {
+    return 'Optimized';
+  }
+
+  if (/\b(analy|dashboard|report|data|insight)\b/.test(text)) {
+    return 'Analyzed';
+  }
+
+  if (/\b(api|backend|service|node|server)\b/.test(text)) {
+    return 'Built';
+  }
+
+  if (/\b(ui|frontend|component|design|react|page)\b/.test(text)) {
+    return 'Developed';
+  }
+
+  return 'Led';
+}
+
+function cleanBulletStem(bullet) {
+  return bullet.text
+    .replace(/^[-*\u2022]\s*/, '')
+    .replace(/^\d+\.\s*/, '')
+    .replace(/^(Responsible for|Worked on|Helped|Involved in|Participated in|Assisted with|Used|Familiar with)\s+/i, '')
+    .replace(/\.+$/, '')
+    .trim();
+}
+
+function rewriteWeakBullet(bullet) {
+  const verb = chooseRewriteVerb(bullet);
+  const stem = cleanBulletStem(bullet)
+    .replace(/^with\s+/i, '')
+    .replace(/^on\s+/i, '')
+    .replace(/^for\s+/i, '');
+  const normalizedStem = stem.charAt(0).toLowerCase() + stem.slice(1);
+
+  return `${verb} ${normalizedStem}, resulting in a measurable improvement such as faster delivery, better performance, or stronger user engagement.`;
+}
+
+function analyzeBulletQuality(rawText) {
+  const bullets = extractResumeBullets(rawText);
+
+  return bullets.map((bullet) => {
+    const startsWithActionVerb = ACTION_VERBS.some((verb) => bullet.normalized.startsWith(`${verb} `));
+    const weakLead = WEAK_BULLET_PATTERNS.some((pattern) => pattern.test(bullet.normalized));
+    const metricMentions = detectMetricMentions(bullet.text);
+    const hasMetric = metricMentions.length > 0;
+    const actionVerbQuality = weakLead ? 'Weak' : startsWithActionVerb ? 'Strong' : 'Moderate';
+    const score = clamp(
+      (startsWithActionVerb ? 34 : 18) +
+        (hasMetric ? 34 : 10) +
+        (bullet.text.length > 80 ? 18 : 8) -
+        (weakLead ? 28 : 0),
+      12,
+      95,
+    );
+
+    return {
+      ...bullet,
+      startsWithActionVerb,
+      weakLead,
+      metricMentions,
+      hasMetric,
+      actionVerbQuality,
+      score,
+      isWeak: score < 52 || weakLead || !hasMetric,
+    };
+  });
 }
 
 function buildSectionDetails(sectionMap, sections, tuning) {
@@ -512,6 +637,227 @@ function buildRoadmap({ matchedSkills, missingSkills, impact, sections }) {
   return roadmap.slice(0, 4);
 }
 
+function buildCriticalIssues({
+  missingSkills,
+  sections,
+  impact,
+  diagnostics,
+  bulletInsights,
+  jobDescriptionInsights,
+  atsPassProbability,
+}) {
+  const issues = [];
+
+  if (missingSkills.length) {
+    issues.push({
+      title: `Missing core skills: ${missingSkills.slice(0, 2).map((skill) => skill.name).join(', ')}`,
+      severity: 'High',
+      impact: 98,
+      detail: 'The resume is not surfacing some of the most important role-specific skills recruiters expect.',
+    });
+  }
+
+  if (!sections.projects) {
+    issues.push({
+      title: 'No projects section detected',
+      severity: 'High',
+      impact: 92,
+      detail: 'Without a projects section, the resume has less proof of applied skill and real execution.',
+    });
+  }
+
+  if (impact.metricCount < 2) {
+    issues.push({
+      title: 'Low measurable impact',
+      severity: 'High',
+      impact: 90,
+      detail: 'The resume needs more numbers, percentages, or business outcomes to feel results-driven.',
+    });
+  }
+
+  const weakBullets = bulletInsights.filter((bullet) => bullet.isWeak);
+  if (weakBullets.length) {
+    issues.push({
+      title: `${weakBullets.length} weak bullet point${weakBullets.length > 1 ? 's' : ''} detected`,
+      severity: 'Medium',
+      impact: 84,
+      detail: 'Several bullets read as generic task descriptions instead of achievement-focused proof points.',
+    });
+  }
+
+  if (!sections.skills) {
+    issues.push({
+      title: 'Skills section is missing or unclear',
+      severity: 'High',
+      impact: 87,
+      detail: 'ATS scanners and recruiters may miss important technologies without a dedicated skills block.',
+    });
+  }
+
+  if (jobDescriptionInsights.enabled && jobDescriptionInsights.missingKeywords.length >= 2) {
+    issues.push({
+      title: 'Target job requirements are underrepresented',
+      severity: 'High',
+      impact: 86,
+      detail: `The resume is not clearly reflecting ${jobDescriptionInsights.missingKeywords
+        .slice(0, 2)
+        .map((skill) => skill.name)
+        .join(' and ')} from the job description.`,
+    });
+  }
+
+  if (diagnostics.wordCount < 180) {
+    issues.push({
+      title: 'Resume content is too thin',
+      severity: 'Medium',
+      impact: 72,
+      detail: 'The document likely needs richer project detail, stronger context, and more evidence of results.',
+    });
+  }
+
+  if (atsPassProbability < 55) {
+    issues.push({
+      title: 'ATS pass probability is below safe range',
+      severity: 'High',
+      impact: 85,
+      detail: 'Formatting, structure, and keyword alignment may be too weak for consistent shortlisting.',
+    });
+  }
+
+  return issues.sort((first, second) => second.impact - first.impact).slice(0, 5);
+}
+
+function buildActionVerbSummary(bulletInsights) {
+  const strong = bulletInsights.filter((bullet) => bullet.actionVerbQuality === 'Strong').length;
+  const moderate = bulletInsights.filter((bullet) => bullet.actionVerbQuality === 'Moderate').length;
+  const weak = bulletInsights.filter((bullet) => bullet.actionVerbQuality === 'Weak').length;
+  const score = Math.round(
+    clamp(
+      strong * 22 + moderate * 12 + (bulletInsights.length ? 12 : 0) - weak * 10,
+      bulletInsights.length ? 28 : 12,
+      96,
+    ),
+  );
+
+  return {
+    strong,
+    moderate,
+    weak,
+    score,
+    label: weak > strong ? 'Needs stronger verbs' : strong >= moderate ? 'Strong action language' : 'Mixed action language',
+  };
+}
+
+function buildImpactSummary(bulletInsights, impact) {
+  const bulletsWithMetrics = bulletInsights.filter((bullet) => bullet.hasMetric).length;
+
+  return {
+    score: Math.round(clamp(impact.score * 0.72 + bulletsWithMetrics * 10, 18, 98)),
+    bulletsWithMetrics,
+    weakBulletCount: bulletInsights.filter((bullet) => bullet.isWeak).length,
+    label:
+      impact.metricCount >= 3
+        ? 'Strong measurable impact'
+        : impact.metricCount >= 1
+          ? 'Some measurable impact'
+          : 'Impact is mostly unquantified',
+  };
+}
+
+function buildRewriteSuggestions(bulletInsights) {
+  return bulletInsights
+    .filter((bullet) => bullet.isWeak)
+    .sort((first, second) => first.score - second.score)
+    .slice(0, 3)
+    .map((bullet, index) => ({
+      id: `rewrite-${index}`,
+      section: bullet.section,
+      before: bullet.text,
+      after: rewriteWeakBullet(bullet),
+      reason: bullet.hasMetric
+        ? 'This rewrite sharpens ownership and action-verb quality.'
+        : 'This rewrite adds stronger ownership and makes room for a measurable outcome.',
+    }));
+}
+
+function buildAtsRiskAnalysis({ atsPassProbability, sections, diagnostics, missingSkills, bulletInsights, jobDescriptionInsights }) {
+  const formattingIssues = [];
+  const keywordIssues = [];
+
+  if (!sections.skills) {
+    formattingIssues.push('Missing clear skills section');
+  }
+
+  if (!sections.experience && !sections.projects) {
+    formattingIssues.push('Limited proof-of-work sections');
+  }
+
+  if (diagnostics.wordCount < 180) {
+    formattingIssues.push('Resume may be too short for ATS confidence');
+  }
+
+  if (bulletInsights.filter((bullet) => bullet.isWeak).length >= 2) {
+    formattingIssues.push('Several bullets are too generic or task-based');
+  }
+
+  missingSkills.slice(0, 4).forEach((skill) => {
+    keywordIssues.push(`${skill.name} is not clearly reflected`);
+  });
+
+  if (jobDescriptionInsights.enabled) {
+    jobDescriptionInsights.missingKeywords.slice(0, 3).forEach((skill) => {
+      keywordIssues.push(`${skill.name} is missing from the target role match`);
+    });
+  }
+
+  return {
+    passProbability: atsPassProbability,
+    rejectionProbability: 100 - atsPassProbability,
+    level:
+      atsPassProbability >= 70 ? 'Low ATS Risk' : atsPassProbability >= 45 ? 'Moderate ATS Risk' : 'High ATS Risk',
+    formattingIssues: formattingIssues.slice(0, 4),
+    keywordIssues: keywordIssues.slice(0, 5),
+  };
+}
+
+function buildJobMatchIntelligence({ jobDescriptionInsights, missingSkills }) {
+  const prioritizedMissing = (jobDescriptionInsights.enabled
+    ? jobDescriptionInsights.missingKeywords
+    : missingSkills
+  )
+    .slice(0, 5)
+    .map((skill, index) => ({
+      id: `job-match-${index}`,
+      name: skill.name,
+      priority:
+        skill.priority === 'Critical' || index < 2
+          ? 'High'
+          : index < 4
+            ? 'Medium'
+            : 'Low',
+    }));
+
+  return {
+    summary: jobDescriptionInsights.enabled
+      ? jobDescriptionInsights.summary
+      : 'Add a job description to unlock a more recruiter-like job match review.',
+    prioritizedMissing,
+  };
+}
+
+function calculateShortlistChance({ overallScore, atsPassProbability, jobRelevanceScore, impactSummary }) {
+  return Math.round(
+    clamp(
+      overallScore * 0.36 +
+        atsPassProbability * 0.32 +
+        jobRelevanceScore * 0.22 +
+        impactSummary.score * 0.1,
+      8,
+      97,
+    ),
+  );
+}
+
 function calculateAtsCompatibility({ sectionDetails, sections, diagnostics, impact, matchedSkills }) {
   const sectionScore = calculateSectionScore(sectionDetails);
   const structureCoverage =
@@ -626,6 +972,7 @@ function buildWeaknesses({ missingSkills, sections, impact, jobDescriptionInsigh
 }
 
 function scoreRole({
+  rawText,
   role,
   normalizedText,
   sectionMap,
@@ -693,6 +1040,7 @@ function scoreRole({
   });
 
   const sectionDetails = buildSectionDetails(sectionMap, sections, tuning);
+  const bulletInsights = analyzeBulletQuality(rawText);
   const skillsScore = Math.round((matchedWeight / Math.max(totalWeightedDemand, 1)) * 100);
   const experienceScore = calculateExperienceScore(experience, sections, role.id);
   const jobDescriptionScore = jobDescriptionUsed
@@ -782,6 +1130,36 @@ function scoreRole({
     impact,
     jobDescriptionInsights,
   });
+  const actionVerbSummary = buildActionVerbSummary(bulletInsights);
+  const impactSummary = buildImpactSummary(bulletInsights, impact);
+  const rewriteSuggestions = buildRewriteSuggestions(bulletInsights);
+  const criticalIssues = buildCriticalIssues({
+    missingSkills,
+    sections,
+    impact,
+    diagnostics,
+    bulletInsights,
+    jobDescriptionInsights,
+    atsPassProbability,
+  });
+  const atsRiskAnalysis = buildAtsRiskAnalysis({
+    atsPassProbability,
+    sections,
+    diagnostics,
+    missingSkills,
+    bulletInsights,
+    jobDescriptionInsights,
+  });
+  const jobMatchIntelligence = buildJobMatchIntelligence({
+    jobDescriptionInsights,
+    missingSkills,
+  });
+  const shortlistChance = calculateShortlistChance({
+    overallScore: score,
+    atsPassProbability,
+    jobRelevanceScore,
+    impactSummary,
+  });
 
   return {
     role,
@@ -791,6 +1169,7 @@ function scoreRole({
     overallScore: score,
     hiringReadiness,
     atsPassProbability,
+    shortlistChance,
     visibleScores: {
       skillMatch: skillsScore,
       atsCompatibility: atsCompatibilityScore,
@@ -802,7 +1181,14 @@ function scoreRole({
     strengths,
     weaknesses,
     risks,
+    criticalIssues,
     roadmap,
+    bulletInsights,
+    actionVerbSummary,
+    impactSummary,
+    rewriteSuggestions,
+    atsRiskAnalysis,
+    jobMatchIntelligence,
     sections,
     sectionDetails,
     experience,
@@ -837,6 +1223,7 @@ export function analyzeResumeForRole(rawText, roleId, jobDescription = '') {
   };
 
   const roleAnalysis = scoreRole({
+    rawText,
     role,
     normalizedText,
     sectionMap,
@@ -849,6 +1236,7 @@ export function analyzeResumeForRole(rawText, roleId, jobDescription = '') {
 
   const benchmarks = ROLES.map((candidateRole) => {
     const benchmarkResult = scoreRole({
+      rawText,
       role: candidateRole,
       normalizedText,
       sectionMap,
