@@ -20,7 +20,7 @@ function wait(duration) {
 }
 
 export default function App() {
-  const [selectedRole, setSelectedRole] = useState('frontend');
+  const [selectedRole, setSelectedRole] = useState('software-developer');
   const [resumeText, setResumeText] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [uploadedFileName, setUploadedFileName] = useState('');
