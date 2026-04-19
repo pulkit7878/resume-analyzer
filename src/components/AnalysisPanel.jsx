@@ -99,14 +99,13 @@ function ScoreBar({ label, value, tone = 'from-blue-400 to-violet-500' }) {
   );
 }
 
-function InsightList({ title, icon, items, emptyMessage, tone = 'default', layout = 'stack' }) {
+function InsightList({ title, icon, items, emptyMessage, tone = 'default' }) {
   const toneClasses =
     tone === 'danger'
       ? 'border-red-400/15 bg-red-500/10 text-red-50'
       : tone === 'success'
         ? 'border-emerald-400/15 bg-emerald-500/10 text-emerald-50'
         : 'border-white/10 bg-white/[0.04] text-slate-200';
-  const layoutClasses = layout === 'grid' ? 'grid gap-3 sm:grid-cols-2' : 'space-y-3';
 
   return (
     <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-5">
@@ -114,7 +113,7 @@ function InsightList({ title, icon, items, emptyMessage, tone = 'default', layou
         {icon}
         <h3 className="text-base font-semibold text-white">{title}</h3>
       </div>
-      <div className={layoutClasses}>
+      <div className="space-y-3">
         {items.length ? (
           items.map((item, index) => (
             <div key={`${title}-${index}`} className={`rounded-2xl border px-4 py-3 text-sm leading-6 ${toneClasses}`}>
@@ -408,14 +407,13 @@ export function AnalysisPanel({ result }) {
           <AtsRiskPanel analysis={result.atsRiskAnalysis} />
         </div>
 
-        <div className="grid items-start gap-6 xl:grid-cols-[1fr_1fr_0.95fr]">
+        <div className="grid items-start gap-6 xl:grid-cols-[1.25fr_1.25fr_0.9fr]">
           <InsightList
             title="Strengths"
             icon={<CheckCircle2 className="h-5 w-5 text-emerald-300" />}
             items={result.strengths}
             emptyMessage="No standout strengths were detected yet."
             tone="success"
-            layout="grid"
           />
           <InsightList
             title="Weaknesses"
@@ -423,7 +421,6 @@ export function AnalysisPanel({ result }) {
             items={result.weaknesses}
             emptyMessage="No major weaknesses were detected."
             tone="danger"
-            layout="grid"
           />
           <DeepAnalysisPanel result={result} />
         </div>
